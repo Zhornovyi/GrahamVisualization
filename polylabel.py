@@ -1,17 +1,8 @@
 from math import sqrt
 import time
-
-try:
-    # Python3
-    from queue import PriorityQueue
-    from math import inf
-except ImportError:
-    # Python2
-    from queue import PriorityQueue
-
-    inf = float("inf")
-
-
+from queue import PriorityQueue
+from math import inf
+import obj
 def _point_to_polygon_distance(x, y, polygon):
     inside = False
     min_dist_sq = inf
@@ -31,7 +22,6 @@ def _point_to_polygon_distance(x, y, polygon):
     if not inside:
         return -result
     return result
-
 
 def _get_seg_dist_sq(px, py, a, b):
     x = a[0]
@@ -54,8 +44,6 @@ def _get_seg_dist_sq(px, py, a, b):
     dy = py - y
 
     return dx * dx + dy * dy
-
-
 class Cell(object):
     def __init__(self, x, y, h, polygon):
         self.h = h
@@ -78,8 +66,6 @@ class Cell(object):
 
     def __eq__(self, other):
         return self.max == other.max
-
-
 def _get_centroid_cell(polygon):
     area = 0
     x = 0
@@ -99,7 +85,77 @@ def _get_centroid_cell(polygon):
     pass
 
 
-def polylabel(polygon, precision=1.0, debug=False, with_distance=False):
+def polylabel(polygon, precision=1.0, with_distance=False)-> obj:
+    # find bounding box
+    first_item = polygon[0][0]
+    min_x = first_item[0]
+    min_y = first_item[1]
+    max_x = first_item[0]
+    max_y = first_item[1]
+    for p in polygon[0]:
+        if p[0] < min_x:
+            min_x = p[0]
+        if p[1] < min_y:
+            min_y = p[1]
+        if p[0] > max_x:
+            max_x = p[0]
+        if p[1] > max_y:
+            max_y = p[1]
+
+    width = max_x - min_x
+    height = max_y - min_y
+    cell_size = min(width, height)
+    h = cell_size / 2.0
+    yield Cell(min_x, min_y, h*2, polygon)
+    cell_queue = PriorityQueue()
+
+    if cell_size == 0:
+        if with_distance:
+            return [min_x, min_y], None
+        else:
+            return [min_x, min_y]
+
+    # cover polygon with initial cells
+    x = min_x
+    while x < max_x:
+        y = min_y
+        while y < max_y:
+            c = Cell(x + h, y + h, h, polygon)
+            y += cell_size
+            cell_queue.put((-c.max, time.time(), c))
+        x += cell_size
+
+    best_cell = _get_centroid_cell(polygon)
+    bbox_cell = Cell(min_x + width / 2, min_y + height / 2, 0, polygon)
+    if bbox_cell.d > best_cell.d:
+        best_cell = bbox_cell
+
+    num_of_probes = cell_queue.qsize()
+    while not cell_queue.empty():
+        _, __, cell = cell_queue.get()
+        yield cell
+        if cell.d > best_cell.d:
+            best_cell = cell
+        if cell.max - best_cell.d <= precision:
+            continue
+
+        h = cell.h / 2
+        c = Cell(cell.x - h, cell.y - h, h, polygon)
+        cell_queue.put((-c.max, time.time(), c))
+        c = Cell(cell.x + h, cell.y - h, h, polygon)
+        cell_queue.put((-c.max, time.time(), c))
+        c = Cell(cell.x - h, cell.y + h, h, polygon)
+        cell_queue.put((-c.max, time.time(), c))
+        c = Cell(cell.x + h, cell.y + h, h, polygon)
+        cell_queue.put((-c.max, time.time(), c))
+        num_of_probes += 4
+
+    if with_distance:
+        return [best_cell.x, best_cell.y], best_cell.d
+    else:
+        return [best_cell.x, best_cell.y]
+#used for getting the final result
+def polylabel_(polygon, precision=1.0, debug=False, with_distance=False)-> obj:
     # find bounding box
     first_item = polygon[0][0]
     min_x = first_item[0]
@@ -140,7 +196,6 @@ def polylabel(polygon, precision=1.0, debug=False, with_distance=False):
         x += cell_size
 
     best_cell = _get_centroid_cell(polygon)
-
     bbox_cell = Cell(min_x + width / 2, min_y + height / 2, 0, polygon)
     if bbox_cell.d > best_cell.d:
         best_cell = bbox_cell
